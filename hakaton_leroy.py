@@ -1,3 +1,4 @@
+import pickle
 import sqlite3
 from collections import Counter
 import spacy
@@ -10,6 +11,34 @@ from itertools import islice
 def connect_to_db(db_path):
     conn = sqlite3.connect(db_path)
     return conn
+def predict_from_phrases(phrases_with_freq):
+    # Проверка формата входных данных
+    if not all(isinstance(item, tuple) and len(item) == 2 for item in phrases_with_freq):
+        raise ValueError("Данные должны быть списком кортежей вида (строка, частота).")
+
+    # Загрузка модели и векторизатора
+    with open('spam_model.pkl', 'rb') as model_file:
+        model = pickle.load(model_file)
+
+    with open('vectorizer.pkl', 'rb') as vectorizer_file:
+        vectorizer = pickle.load(vectorizer_file)
+
+    # Преобразование входных данных в одну строку
+    text = " ".join(f"{phrase} " * freq for phrase, freq in phrases_with_freq)
+
+    # Векторизация текста
+    X = vectorizer.transform([text])  # Преобразуем текст в вектор
+
+    # Предсказание
+    prediction = model.predict(X)  # Предсказание класса
+    probabilities = model.predict_proba(X)  # Вероятности по классам
+
+    # Возврат результата
+    return {
+        "prediction": prediction[0],
+        "probabilities": probabilities[0]
+    }
+
 
 # Извлечение данных из базы
 def fetch_data(conn):
@@ -85,17 +114,17 @@ def main():
 
     print("Обработка текста для облака слов...")
     words = process_texts_to_words(texts)
-
     print("Обработка текста для облака словосочетаний...")
     phrases = process_texts_to_phrases(texts)
-
     print("Анализ трендов для слов...")
     word_trends = analyze_trends(words)
     print("Топ слов:", word_trends)
+    print(predict_from_phrases(word_trends))
 
     print("Анализ трендов для словосочетаний...")
     phrase_trends = analyze_trends(phrases)
     print("Топ словосочетаний:", phrase_trends)
+    print(predict_from_phrases(phrase_trends))
 
     print("Визуализация облака слов...")
     visualize_wordcloud(words, title="Облако слов")
